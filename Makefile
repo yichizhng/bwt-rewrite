@@ -2,9 +2,11 @@ CC = gcc
 CFLAGS = -pthread -std=gnu99 -O3 -Wall -Wextra -pedantic -m64
 
 TESTS = fmitest
-PROGS = search_reads
+PROGS = search_reads build_index
 
 all: $(TESTS) $(PROGS)
+
+build_index: seqindex.o csacak.o build_index.o fileio.o
 
 search_reads: seqindex.o csacak.o search_reads.o fileio.o
 	gcc -o $@ $^ $(CFLAGS)
