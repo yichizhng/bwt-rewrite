@@ -8,10 +8,10 @@
 void write_index(const fm_index *fmi, FILE *f) {
   // Writes the FM-index to file... well, the parts that take
   // time to actually generate.
-  fwrite(&fmi->len, sizeof(int), 1, f);
-  fwrite(fmi->C, sizeof(int), 5, f);
-  fwrite(&fmi->endloc, sizeof(int), 1, f);
-  fwrite(fmi->idxs, sizeof(int), (1+(fmi->len)/32), f);
+  fwrite(&fmi->len, sizeof(fmi->len), 1, f);
+  fwrite(fmi->C, sizeof(*fmi->C), 5, f);
+  fwrite(&fmi->endloc, sizeof(fmi->endloc), 1, f);
+  fwrite(fmi->idxs, sizeof(*fmi->idxs), (1+(fmi->len)/32), f);
   fwrite(fmi->bwt, 1, (fmi->len+3)/4, f);
   // C standard guarantees sizeof(char) to be 1
   return;
@@ -26,23 +26,23 @@ fm_index *read_index(FILE *f) {
   int err = 0;
 
   fm_index *fmi = calloc(1, sizeof(fm_index));
-  sz = fread(&fmi->len, sizeof(int), 1, f);
+  sz = fread(&fmi->len, sizeof(fmi->len), 1, f);
   if (sz != 1) {
     fprintf(stderr, "Error reading index from file\n");
     err = 1;
   }
-  sz = fread(fmi->C, sizeof(int), 5, f);
+  sz = fread(fmi->C, sizeof(*fmi->C), 5, f);
   if (sz != 5) {
     fprintf(stderr, "Error reading index from file\n");
     err = 1;
   }
-  sz = fread(&fmi->endloc, sizeof(int), 1, f);
+  sz = fread(&fmi->endloc, sizeof(fmi->endloc), 1, f);
   if (sz != 1) {
     fprintf(stderr, "Error reading index from file\n");
     err = 1;
   }
-  fmi->idxs = malloc((1+(fmi->len)/32) * sizeof(int));
-  sz = fread(fmi->idxs, sizeof(int), 1+(fmi->len)/32, f);
+  fmi->idxs = malloc((1+(fmi->len)/32) * sizeof(long long));
+  sz = fread(fmi->idxs, sizeof(long long), 1+(fmi->len)/32, f);
   if (sz != 1 + (fmi->len)/32) {
     fprintf(stderr, "Error reading index from file\n");
     err = 1;

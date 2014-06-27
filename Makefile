@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -pthread -std=gnu99 -O3 -Wall -Wextra -pedantic -m64
+CFLAGS = -pthread -std=gnu99 -Og -g -Wall -Wextra -pedantic -m64
 
 TESTS = fmitest
 PROGS = search_reads build_index
