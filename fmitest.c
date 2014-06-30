@@ -159,9 +159,9 @@ int main(int argc, char **argv) {
   startWorkers(fmi, 10000000, pats);
   rdtscll(b);
   printf("Searched 10000000 12bp sequences in %lld cycles (%f s)\n",
-	 b-a, ((double)(b-a)) / 2500000000.);
+	 b-a, ((double)(b-a)) / 2400000000.);
   printf("(%f cycles per base pair (%e seconds))\n", ((double)(b-a))	\
-	 / 120000000., ((double)(b-a)) / 300000000000000000.);
+	 / 120000000., ((double)(b-a)) / 288000000000000000.);
   
   destroy_fmi(fmi);
   // With current settings the FMI with 1000000 base pairs takes

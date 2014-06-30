@@ -249,12 +249,12 @@ long long unc_sa(const fm_index *fmi, long long idx) {
   return x;
 }
 
-// Runs in O(log(n) + m) time
+// Runs in O(log_c(n) + m) time
 long long locate(const fm_index *fmi, const unsigned char *pattern, long long len) {
   // Find the (first[0]) instance of a given sequence in a given fm-index
   // Returns -1 if none are found
   // [0] "first" in terms of location in the suffix array; i.e. the match
-  // whose corresponding rotation (or equivalently, suffix) comes first
+  // whose corresponding rotation (equivalently, suffix) comes first
   // lexicographically; this is largely irrelevant in any real usage
   long long start, end, i;
   start = fmi->C[pattern[len-1]];
@@ -266,8 +266,8 @@ long long locate(const fm_index *fmi, const unsigned char *pattern, long long le
     start = fmi->C[pattern[i]] + rank(fmi, pattern[i], start);
     end = fmi->C[pattern[i]] + rank(fmi, pattern[i], end);
   }
-  if (end - start != 1)
-    printf("Warning: multiple matches found (returned first)\n");
+  //if (end - start != 1)
+  //  printf("Warning: multiple matches found (returned first)\n");
   return unc_sa(fmi, start);
 }
 

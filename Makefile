@@ -1,7 +1,7 @@
 CC = gcc
-CFLAGS = -pthread -std=gnu99 -Og -g -Wall -Wextra -pedantic -m64
+CFLAGS = -pthread -std=gnu99 -O3 -m64
 
-TESTS = fmitest
+TESTS = fmitest filetest
 PROGS = search_reads build_index
 
 all: $(TESTS) $(PROGS)
@@ -12,6 +12,9 @@ search_reads: seqindex.o csacak.o search_reads.o fileio.o
 	gcc -o $@ $^ $(CFLAGS)
 
 fmitest: fmitest.o seqindex.o csacak.o
+	gcc -o $@ $^ $(CFLAGS)
+
+filetest: filetest.o seqindex.o csacak.o fileio.o
 	gcc -o $@ $^ $(CFLAGS)
 
 # No, gcc, I will not listen to your whinging
