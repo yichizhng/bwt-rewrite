@@ -8,7 +8,7 @@ all: $(TESTS) $(PROGS)
 
 build_index: seqindex.o csacak.o build_index.o fileio.o
 
-search_reads: seqindex.o csacak.o search_reads.o fileio.o
+search_reads: seqindex.o csacak.o search_reads.o fileio.o stack.o
 	gcc -o $@ $^ $(CFLAGS)
 
 fmitest: fmitest.o seqindex.o csacak.o
