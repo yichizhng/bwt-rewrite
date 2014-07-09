@@ -1,0 +1,66 @@
+Low level overview (the implementation of a FM-index)
+
+A FM-index consists of two parts; the Burrows-Wheeler transform of the corpus
+(the genome, in our case) and some auxiliary data allowing us to calculate
+the suffix array (i.e. the rotation corresponding to a given location on the
+Burrows-Wheeler transform) and the rank of a given character at a psition on the
+BWT (the number of times it occurs in the BWT before that point); see Wikipedia
+or the various other sites detailing the FM-index for details.
+
+Having the FM-index allows us to do exact string search in O(m) time, where
+m is the length of the substring we are searching for and n is the size of
+the corpus. This is used to do repeated seed search on the genome. A normal
+read is simply aligned by searching as far as possible (I refer to this as
+a "maximum mappable suffix" search) and using that as an anchor if it is
+sufficiently long, then repeating the search after skipping 1-3 characters
+on the read and extending the anchor if the MMS is sufficiently close to
+the position we aligned the anchor to. (see the function align_read_anchored
+in single_align.c). The Smith-Waterman and Needleman-Wunsch algorithms are used
+to align the parts (in between anchors and at the ends of the read) which did
+not align.
+
+This algorithm is considerably faster than backtracking exact search (Bowtie's
+approach) and still reasonably sensitive (subject to tweaking of parameters
+such as required anchor length, number of mismatches/indels allowed, etc). These
+are currently hardcoded but it is not particularly difficult to change them
+into variables.
+
+Future extensions:
+
+This may be extended almost trivially to spliced reads (multi-spliced reads are
+technically possible, but complicated and nearly irrelevant); if we cannot
+find an anchor extend after skipping three characters we simply assume that
+there is a splice site and then look for another anchor. (If we are simply
+looking for a splice site we can just look for anchors)
+
+A circular splice is fairly trivial to identify; look for a read which aligns
+both forward and backward. See search_reads.c for a basic implementation.
+
+The optimal way to align a read is to build an index which has all four
+possible variations (sense, reverse sense, antisense, reverse antisense)
+separated by some long string of characters to prevent aligning across
+variations, since the speed of read alignment does not depend on corpus size.
+This reduces the number of alignments we need to do (otherwise we need to align
+all four variations of the read against one index) but increases the amount
+of memory needed proportionally. As such, Bowtie does it by building four
+indices which correspond to the four possibilities. I see no benefit in
+doing so and instead build a single index and try to align all four variations
+of the _read_ onto it.
+
+In order to retrieve the exact position and CIGAR, we use dynamic programming
+methods; Smith-Waterman to "stitch" adjacent exact matches together, and
+Needleman-Wunsch to align the "head" and "tail" against the genome. See smw.c
+(which has a lot of dead code) for details.
+
+Optimization details:
+Obviously, each nucleotide may be stored in two bits. This is used in both
+the index and sequence storage. A small problem is that there is then no
+sentinel character; instead the endloc field is used to indicate where it
+would have been and it is not stored in the Burrows-Wheeler transform.
+
+Stitching (i.e. properly calculating the CIGAR) requires access to the original
+sequence; while this may be retrieved from the Burrows-Wheeler transform, this
+is also extremely slow. Instead the original sequence is kept in memory.
+
+The SACA-K algorithm is used to build the suffix array for the index; this
+is a constant auxiliary space algorithm developed by Ge Nong.
