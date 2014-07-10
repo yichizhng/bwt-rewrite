@@ -161,85 +161,86 @@ int mms_mismatch(const fm_index *fmi, const unsigned char *seq, const unsigned c
 
 // Pass in the required anchor length. No mismatch will be allowed.
 unsigned long long align_read_anchored(const fm_index *fmi, const unsigned char *seq, const unsigned char *pattern, int len, int anchor_len, stack *s) {
+  int score;
+  int indels;
   const int olen = len;
-  int anchmisses = len/10, nmisses;
   // Here we require an anchor to start in the last 20% of the read
   long long curgap = 0;
   long long curpos = -1;
   long long endpos;
   int anchlen;
-  // Look for an anchor of length at least anchor_len (try 20 or so, or maybe
-  // log_4(fmi->len)+1)
-  while (len > anchor_len && anchmisses > 0) {
-    nmisses = 0;
-    while ((len > anchor_len) && (anchmisses > 0)) {
+  while ((len > anchor_len)) {
+    score = -1;
+    while (len > anchor_len) {
       int seglen = mms(fmi, pattern, len, &curpos, &endpos);
       if (seglen < anchor_len || endpos - curpos > 1) {
-	anchmisses--;
 	len -= 3;
 	continue;
       }
       else {
 	len -= seglen;
 	anchlen = seglen;
-	nmisses = olen/5;
+	score = (int) (0.6 * (1 + olen));
+	indels = 5; // Should be adjustable?
 	curpos = unc_sa(fmi, curpos);
 	//fprintf(stderr, "%d %d %d\n", anchlen, olen, len);
 
 	// And use N-W to align the "tail" of the read
-	int buflen = 10 + (olen - (len + seglen));
+	int buflen = indels + (olen - (len + seglen));
 	if (buflen + curpos + seglen > fmi->len)
 	  buflen = fmi->len - curpos - seglen;
 	unsigned char *buf = malloc(buflen);
 	for (int i = 0; i < buflen; ++i)
 	  buf[i] = getbase(seq, curpos + seglen + i);
 	nw_fast(pattern + len + seglen, olen - (len + seglen),
-		buf, buflen, s);
+		buf, buflen, s, &score, &indels);
+	// TODO: it is probably better to instead reverse the tail of
+	// the buffer and align it from there
+
 	// We can ignore the return value (we don't really care where the
 	// end of the read ends up; we can calculate that from the CIGAR)
 	free(buf);
-		//	free(buf2);
 	// Then push this anchor onto it
 	stack_push(s, 'M', seglen);
 	break;
       }
     }
     
-    if (nmisses < 1)
+    if (score < 0)
       continue;
 
     // In the second loop we try to extend our anchor backwards
-    while ((len > nmisses) && (len > 4) && (nmisses > 0)) {
-      for (curgap = 1; curgap < 10; ++curgap) {
+    while ((len > anchor_len) && (score >= 0) && (indels >= 0)) {
+      for (curgap = 1; curgap + anchor_len < len && curgap < anchor_len && curgap < len; ++curgap) {
 	long long int start, end;
 	int seglen = mms(fmi, pattern, len-curgap, &start, &end);
+	if (seglen < anchor_len)
+	  continue;
 	int matched = 0;
 	for (long long i = start; i < end; ++i) {
-	  if (abs(unc_sa(fmi, i) + seglen - curpos) - curgap <= 3) {
-	    // TODO: write proper scoring function, the number of misses
-	    // is not going to be curgap.
-	    nmisses -= curgap;
+	  long long cpos = unc_sa(fmi, i);
+	  if (abs(cpos + seglen - curpos) - curgap <= 3) {
 	    matched = 1;
-	    
 	    // Align the stuff in between. In this case we don't need to
 	    // copy pattern to a new buffer, but we do still need to copy
 	    // the genome
-	    int buflen = curpos - (unc_sa(fmi, i) + seglen);
+	    int buflen = curpos - (cpos + seglen);
 	    // There's a semi-theoretical problem that this might actually
 	    // be negative, but that's easy to resolve
 	    if (buflen < 0) {
 	      stack_push(s, 'I', -buflen);
+	      indels += buflen;
 	    }
 	    else {
 	      unsigned char *buf = malloc(buflen);
 	      for (int j = 0; j < buflen; ++j)
-		buf[j] = getbase(seq, unc_sa(fmi, i) + seglen + j);
+		buf[j] = getbase(seq, cpos + seglen + j);
 	      // And compare
-	      sw_fast(pattern + (len - curgap), curgap, buf, buflen, s);
+	      sw_fast(pattern + (len - curgap), curgap, buf, buflen, s, &score, &indels);
 	      free(buf);
 	    }
 	    stack_push(s, 'M', seglen);
-	    curpos = unc_sa(fmi, i);
+	    curpos = cpos;
 	    len -= seglen + curgap;
 	    curgap = 0;
 	    break;
@@ -250,12 +251,17 @@ unsigned long long align_read_anchored(const fm_index *fmi, const unsigned char 
 	else
 	  continue;
       }
-      if (curgap)
-	nmisses = 0;
+      if (curgap) {
+	break;
+      }
     }
-    if (nmisses > 0) {
+    if ((score >= 0) && (indels >= 0)) {
+      if (len < 0) {
+	// I don't even know when this happens
+	return 0;
+      }
       // Set up matrix for N-W alignment
-      int buflen = len + 10;
+      int buflen = len + indels;
       if (buflen > curpos)
 	buflen = curpos;
       unsigned char *buf = malloc(buflen);
@@ -264,25 +270,24 @@ unsigned long long align_read_anchored(const fm_index *fmi, const unsigned char 
       unsigned char *buf2 = malloc(len);
       for (int i = 0; i < len; ++i)
 	buf2[i] = pattern[len-1-i];
-      int x = nw_fast(buf2, len, buf, buflen, s);
+      int x = nw_fast(buf2, len, buf, buflen, s, &score, &indels);
       free(buf);
       free(buf2);
       //printf("%d %d\t", x, len);
-      return curpos - x;
+      printf("\t%d\n", indels);
+      if ((score >= 0) && (indels >= 0))
+	return curpos - x;
+      //return 0; // Give up early to save some time
     }
-
-    len -= anchlen;
-    anchmisses -= anchlen / 10;
-    //stack_destroy(s);
-    //s = stack_make();
     // reset the stack
+    len-= anchlen;
     s->size = 0;
   }
-  if (len > nmisses || nmisses < 1) {
+  if ((score < 0) || (indels < 0)) {
     return 0;
   }
 
-  int buflen = len + 10;
+  int buflen = len + indels;
   if (buflen > curpos)
     buflen = curpos;
   unsigned char *buf = malloc(buflen);
@@ -291,10 +296,12 @@ unsigned long long align_read_anchored(const fm_index *fmi, const unsigned char 
   unsigned char *buf2 = malloc(len);
   for (int i = 0; i < len; ++i)
     buf2[i] = pattern[len-1-i];
-  int x = nw_fast(buf2, len, buf, buflen, s);
+  int x = nw_fast(buf2, len, buf, buflen, s, &score, &indels);
   free(buf);
   free(buf2);
-  return curpos - x;
+  if ((score >= 0) && (indels >= 0))
+    return curpos - x;
+  return 0;
 }
 
 int align_read(const fm_index *fmi, const unsigned char *seq, const unsigned char *pattern, int len, int thresh) {

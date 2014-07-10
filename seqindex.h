@@ -39,7 +39,7 @@ long long lf(const fm_index *fmi, long long idx);
 
 // Searches for an exact pattern over the indexed sequence; returns
 // the "first" (in this context, this means the rotation which appears
-// first lexicographically) match, prlong longing a warning message if there
+// first lexicographically) match, printing a warning message if there
 // are multiple matches.
 // pattern should be given uncompressed but in 0-3 form.
 // Linear time in len * complexity of rank()

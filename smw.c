@@ -23,7 +23,7 @@ static inline int max(int a, int b, int c) {
 // to. Outputs some CIGARs to the given stack. This function can be used
 // to align both the head and tail; the head should be passed in backwards
 // (i.e. str1[0] and str2[0] are the characters that the MMS failed on)
-int nw_fast(const unsigned char *str1, int len1, const unsigned char *str2, int len2, stack *s) {
+int nw_fast(const unsigned char *str1, int len1, const unsigned char *str2, int len2, stack *s, int *score, int *indels) {
   //  fprintf(stderr, "%d %d\n", len1, len2);
   if (len1 == 0) { // happens more often than you'd think
     return 0; // Nothing at all to do
@@ -70,6 +70,7 @@ int nw_fast(const unsigned char *str1, int len1, const unsigned char *str2, int 
   }
   i = len1;
   j = maxloc;
+  *score += values[i * (len2 + 1) + j];
   // In theory something bad might have happened (some insertions on the end)
   // if str1 wasn't long enough. I'm going to ignore that possibility :)
   // But it's something to think about implementing
@@ -84,10 +85,12 @@ int nw_fast(const unsigned char *str1, int len1, const unsigned char *str2, int 
     case 1:
       i--;
       stack_push(flips, 'I', 1);
+      (*indels)--;
       break;
     case 2:
       j--;
       stack_push(flips, 'D', 1);
+      (*indels)--;
       break;
     default: // 0
       i--;
@@ -99,10 +102,12 @@ int nw_fast(const unsigned char *str1, int len1, const unsigned char *str2, int 
   while (i) {
     i--;
     stack_push(flips, 'I', 1);
+    (*indels)--;
   }
   while (j) {
     j--;
     stack_push(flips, 'D', 1);
+    (*indels)--;
   }
   stack_flip (flips, s);
   free(pointers);
@@ -114,7 +119,7 @@ int nw_fast(const unsigned char *str1, int len1, const unsigned char *str2, int 
 // strings (so obviously we don't need to return the position on str2 that
 // we aligned to), outputting to the stack
 // str1 still refers to the pattern and str2 to the genome, for consistency
-void sw_fast(const unsigned char *str1, int len1, const unsigned char *str2, int len2, stack *s) {
+void sw_fast(const unsigned char *str1, int len1, const unsigned char *str2, int len2, stack *s, int *score, int *indels) {
   int *values, i, j;
   char *pointers;
   values = malloc((len1 + 1) * (len2 + 1) * sizeof(int));
@@ -153,6 +158,7 @@ void sw_fast(const unsigned char *str1, int len1, const unsigned char *str2, int
   // is correct)
   i = len1;
   j = len2;
+  *score += values[i * (len2 + 1) + j];
   while (i && j) {
     // Figure out which way the correct path goes; we can infer this directly
     // from the score, in fact, but it's just easier to keep track of that
@@ -169,10 +175,12 @@ void sw_fast(const unsigned char *str1, int len1, const unsigned char *str2, int
     case 1:
       i--;
       stack_push(s, 'I', 1);
+      (*indels)--;
       break;
     case 2:
       j--;
       stack_push(s, 'D', 1);
+      (*indels)--;
       break;
     default: // 0
       i--;
@@ -184,10 +192,12 @@ void sw_fast(const unsigned char *str1, int len1, const unsigned char *str2, int
   while (i) {
     i--;
     stack_push(s, 'I', 1);
+    (*indels)--;
   }
   while (j) {
     j--;
     stack_push(s, 'D', 1);
+    (*indels)--;
   }
   // verify contents of stack
   //for (int k = 0; k < s->size; ++k) {
@@ -240,113 +250,3 @@ int** smw(const char *str1, int len1, const char *str2, int len2) {
   // (i, j), but we can leave that for a different function
   return values;
 }
-
-/*
-
-// Testing routine; should probably be removed or moved to a different file
-int main(int argc, char **argv) {
-  // Take two inputs from arguments
-  long long int a, b;
-  int **val, i, j, k, ii, *fval;
-  char *buf1, *buf2;
-  if (argc < 3)
-    return -1;
-  rdtscll(a);
-  val = smw(argv[1], strlen(argv[1]),argv[2], strlen(argv[2]));
-  rdtscll(b);
-  // Do something with a and b :)
-  printf("%f\n", (double)(b-a) / ((double)(strlen(argv[1]) * strlen(argv[2]))));
-  // Print the optimal global alignment; we can do this by recursing backwards
-  // and storing (or better, by reversing the string before aligning!)
-
-  rdtscll(a);
-  fval = nw_fast(argv[1], strlen(argv[1]), argv[2], strlen(argv[2]));
-  rdtscll(b);
-  printf("%f\n", (double)(b-a) / ((double)(strlen(argv[1]) * strlen(argv[2]))));
-
-
-  // Note that backtracking on a Needleman-Wunsch matrix is easier than
-  // on a Smith-Waterman, because we don't have to deal with all the zeroes
-  i = strlen(argv[1]);
-  j = strlen(argv[2]);
-  buf1 = malloc(i + j + 1);
-  buf2 = malloc(i + j + 1);
-  buf1[i+j] = 0;
-  buf2[i+j] = 0;
-  k = 0;
-  // This is as long as we can possibly need; it is possible to calculate
-  // the number of indels first, but that hardly seems necessary ;)
-  
-  // Complicated loop logic to print the thing properly -.-
-  // There are a lot of pitfalls in string indexing to be avoided here
-  while (i && j) {
-    // We can check whether we've taken a match (or *can* take a match) in order
-    // to get to an optimal alignment (note that there can be multiple)
-    // Since we would take a mismatch the same way, we can deal with that too
-    if (((argv[1][i-1] == argv[2][j-1]) && (val[i][j] - val[i-1][j-1] == 2)) ||
-	val[i][j] - val[i-1][j-1] == -1) {
-      // We take a (mis)match here; increment k and print the character to both
-      // strings
-      --i;
-      --j;
-      // The point of incrementing k is to not break string indexing
-      ++k;
-      buf1[i+j+k] = argv[1][i];
-      buf2[i+j+k] = argv[2][j];
-    }
-    else if (val[i][j] - val[i][j-1] == -1) {
-      // Then we only decrement j (and don't increment k)
-      --j;
-      buf1[i+j+k] = '-';
-      buf2[i+j+k] = argv[2][j];
-    }
-    else if (val[i][j] - val[i-1][j] == -1) {
-      // Decrement i
-      --i;
-      buf1[i+j+k] = argv[1][i];
-      buf2[i+j+k] = '-';
-    }
-    else {
-      // crash and burn
-      exit(-1);
-    }
-  }
-
-  // If there's an indel at the beginning we get rid of that now
-  // Do it in two loops just to simplify logic
-  ii = i;
-  while (i) {
-    --i;
-    buf1[i+j+k] = argv[1][i];
-    buf2[i+j+k] = '-';
-  }
-  i = ii;
-  while (j) {
-    --j;
-    buf1[i+j+k] = '-';
-    buf2[i+j+k] = argv[2][j];
-  }
-  // Finally, print both buffers, using k to figure out where to start
-  printf("%s\n%s\n", buf1+k, buf2+k);
-  free(buf1);
-  free(buf2);
-
-  for (i = 0; i <= strlen(argv[1]); ++i) {
-    for (j = 0; j <= strlen(argv[2]); ++j) {
-      printf("%3d", val[i][j]);
-    }
-    putchar('\n');
-    free(val[i]);
-  }
-  free(val);
-
-  for (i = 0; i <= strlen(argv[1]); ++i) {
-    for (j = 0; j <= strlen(argv[2]); ++j) {
-      printf("%3d", fval[i * (1+strlen(argv[2])) + j]);
-    }
-    putchar('\n');
-  }
-  free(fval);
-}
-
-*/
