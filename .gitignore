@@ -1,0 +1,10 @@
+*.o
+*.sq
+*.sq.idx
+*.locs
+filetest
+fmitest
+gmon.out
+search_reads
+single_align
+build_index
