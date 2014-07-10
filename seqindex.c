@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
 #include "seqindex.h"
 #include "csacak.h"
 
@@ -86,7 +87,7 @@ long long **seq_index(unsigned char *bwt, long long len, long long blocksize, co
 long long seq_rank(unsigned char *bwt, long long **sidx, long long blocksize, long long idx, char c, const unsigned char * lookup) {
   long long x, i;
   // First we look up the appropriate block prefix sum
-  x = sidx[idx/blocksize][(size_t)c];
+  x = sidx[idx/blocksize][(ptrdiff_t)c];
   // Now we iterate through the block
   /* unoptimized version */
   //for (i = 0; i < idx % blocksize; i ++) {
@@ -308,6 +309,11 @@ void loc_search(const fm_index *fmi, const unsigned char *pattern, long long len
 // of matches in sp and ep.
 long long mms(const fm_index *fmi, const unsigned char *pattern, long long len, long long *sp, long long *ep) {
   long long start, end, i;
+  int skips = 0;
+  while (pattern[len-1] == 5) {
+    len--;
+    skips++;
+  }
   start = fmi->C[pattern[len-1]];
   end = fmi->C[pattern[len-1]+1];
   for (i = len-2; i >= 0; --i) {
@@ -316,15 +322,27 @@ long long mms(const fm_index *fmi, const unsigned char *pattern, long long len, 
     }
     *sp = start;
     *ep = end;
-    start = fmi->C[pattern[i]] + rank(fmi, pattern[i], start);
-    end = fmi->C[pattern[i]] + rank(fmi, pattern[i], end);
+    unsigned char c = pattern[i];
+    if (c == 5) {
+      // Assume it's the "most likely" one (the one with most matches)
+      int max = -1;
+      for (char d = 0; d < 4; ++d) {
+	int count = rank(fmi, d, end) - rank(fmi, d, start);
+	if (count > max) {
+	  max = count;
+	  c = d;
+	}
+      }
+    }
+    start = fmi->C[c] + rank(fmi, c, start);
+    end = fmi->C[c] + rank(fmi, c, end);
   }
   if (end <= start) // Didn't finish matching
-    return len - i - 2;
+    return len - i - 2 + skips;
   else { // Finished matching
     *sp = start;
     *ep = end;
-    return len - i - 1;
+    return len - i - 1 + skips;
   }
 }
 

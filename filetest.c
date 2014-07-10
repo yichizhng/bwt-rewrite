@@ -7,7 +7,7 @@
 #include "csacak.h"
 #include "fileio.h"
 
-static inline unsigned char getbase(const char *str, int idx) {
+static inline unsigned char getbase(const unsigned char *str, int idx) {
 	// Gets the base at the appropriate index
 	return ((str[idx>>2])>>(2*(3-(idx&3)))) & 3;
 }
@@ -20,7 +20,7 @@ static inline unsigned char getbase(const char *str, int idx) {
 int main(int argc, char **argv) {
   // We take our input filename from argv
   int len, i, j, k, jj;
-  char *seq, *buf;
+  unsigned char *seq, *buf;
   unsigned char c;
   long long a, b;
   fm_index *fmi;
@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
   }
   // Handle the last character (which is at seq[len/4]
   c = 0;
-  for (i = 0; i < len&3; ++i) {
+  for (i = 0; i < (len&3); ++i) {
     switch(fgetc(fp)) {
     case 'C': c ^= 64 >> (2 * i); break;
     case 'G': c ^= 128 >> (2 * i); break;
@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
   }
 
   int seqlen = 50;
-  // Do some fun tests (load up a length 16 sequence (starting from anywhere
+  // Do some fun tests (load up a sequence (starting from anywhere
   // on the "genome") and backwards search for it on the fm-index
   buf = malloc(seqlen); // The C/C++ standard guarantees that sizeof(char) == 1
   srand(time(0));
@@ -98,15 +98,16 @@ int main(int argc, char **argv) {
       buf[k] = getbase(seq, j+k);
     }
     jj = locate(fmi, buf, seqlen);
-    //if (j != jj && j != -1) {
-    //  printf("Ruh roh ");
-    //  printf("%d %d\n", j, jj); }
+    if (j != jj) {
+      printf("Ruh roh ");
+      printf("%d %d\n", j, jj); }
   }
   rdtscll(b);
   fprintf(stderr, "Took %lld cycles to search 1000000 %dbp sequences\n",
 	  b-a, seqlen);
   fprintf(stderr, "(%f seconds), over a genome of length %d\n", 
 	 ((double)(b-a)) / 2400000000, len);
+  // Note that that number depends on your clock frequency
   destroy_fmi(fmi);
   free(seq);
   free(buf);
