@@ -169,7 +169,7 @@ unsigned long long align_read_anchored(const fm_index *fmi, const unsigned char 
   long long curpos = -1;
   long long endpos;
   int anchlen;
-  while ((len > anchor_len)) {
+  while ((len > anchor_len) && ((olen - len) < 2 * anchor_len)) {
     score = -1;
     while (len > anchor_len) {
       int seglen = mms(fmi, pattern, len, &curpos, &endpos);
