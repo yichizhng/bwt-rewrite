@@ -164,14 +164,13 @@ unsigned long long align_read_anchored(const fm_index *fmi, const unsigned char 
   int score;
   int indels;
   const int olen = len;
-  // Here we require an anchor to start in the last 20% of the read
   long long curgap = 0;
   long long curpos = -1;
   long long endpos;
   int anchlen;
   while ((len > anchor_len) && ((olen - len) < 2 * anchor_len)) {
     score = -1;
-    while (len > anchor_len) {
+    while ((len > anchor_len)  && ((olen - len) < 2 * anchor_len)) {
       int seglen = mms(fmi, pattern, len, &curpos, &endpos);
       if (seglen < anchor_len || endpos - curpos > 1) {
 	len -= 3;
@@ -229,7 +228,7 @@ unsigned long long align_read_anchored(const fm_index *fmi, const unsigned char 
 	    // be negative, but that's easy to resolve
 	    if (buflen < 0) {
 	      stack_push(s, 'I', -buflen);
-	      indels += buflen;
+	      indels -= buflen;
 	    }
 	    else {
 	      unsigned char *buf = malloc(buflen);
