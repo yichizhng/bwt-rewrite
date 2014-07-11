@@ -228,7 +228,7 @@ unsigned long long align_read_anchored(const fm_index *fmi, const unsigned char 
 	    // be negative, but that's easy to resolve
 	    if (buflen < 0) {
 	      stack_push(s, 'I', -buflen);
-	      indels -= buflen;
+	      indels += buflen;
 	    }
 	    else {
 	      unsigned char *buf = malloc(buflen);
